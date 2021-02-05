@@ -12,8 +12,10 @@ PROPERTIES_FILE=${PROPERTIES_FILE:-${1:-$scriptdir/demo-heat-properties.yaml}}
 STACK_NAME=${STACK_NAME:-$USER.demo.test}
 STACK_FILE=${STACK_FILE:-$scriptdir/demo-heat-template.yaml}
 SERVER_NAME=${SERVER_NAME:-$USER.demo.test}
-declare -A hosts=([machineA]="" [machineB]="" [machineC]="")
+declare -A name2ip=([machineA]="" [machineB]="" [machineC]="")
+declare -A name2fqdn=([machineA]="" [machineB]="" [machineC]="")
 ANSIBLE_USER=${ANSIBLE_USER:-demo}
+export ANSIBLE_STDOUT_CALLBACK=debug
 
 if [ -z "$START_STEP" ] ; then
     echo Error: must define START_STEP
@@ -104,6 +106,10 @@ wait_for_stack_create() {
     return 0
 }
 
+get_cloud_init_finished() {
+    ansible -vv -i inventory $1 -m shell -a "tail -1 /var/log/cloud-init-output.log | grep '^Cloud-init.* finished at '" 
+}
+
 create_stack_and_machs_get_external_ips() {
     openstack stack create -e $PROPERTIES_FILE \
               -t $STACK_FILE $STACK_NAME
@@ -111,7 +117,62 @@ create_stack_and_machs_get_external_ips() {
     wait_until_cmd wait_for_stack_create $STACK_NAME 600
 
     stack=`get_stack $STACK_NAME`
-    wait_until_cmd get_external_ip "$stack machineA_ip" 400
+    for host in ${!name2ip[*]}; do
+        wait_until_cmd get_external_ip "$stack ${host}_ip" 400
+    done
+}
+
+get_fqdn() {
+    # use getent hosts $ip to get the fqdn used by the host
+    ssh -n -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no demo@"$1" "getent hosts $1" | \
+        awk -v ip="$1" '$0 ~ "^" ip " " {print $2; exit 0}; {exit 1}'
+}
+
+make_inventory() {
+    # Use fqdn for host key if available, otherwise, use the
+    # shortname - always use the ip address for ansible_host
+    echo "all:"
+    echo "  hosts:"
+    local firsthost=""
+    local domain=""
+    local host
+    for host in ${!name2ip[*]}; do
+        local invhost=""
+        if [ -n "${name2fqdn[$host]}" ]; then
+            invhost="${name2fqdn[$host]}"
+            domain=${invhost#*.}
+        else
+            invhost="$host"
+        fi
+        if [ -z "$firsthost" ]; then
+            firsthost="$invhost"
+        fi
+        echo "    ${invhost}:"
+        echo "      ansible_host: ${name2ip[$host]}"
+        echo "      ansible_ssh_common_args: -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no"
+        echo "      ansible_user: ${ANSIBLE_USER}"
+        echo "      ansible_become: true"
+    done
+    echo "  vars:"
+    echo "    metrics_server: $firsthost"
+    echo "    logging_server: $firsthost"
+    if [ -n "$domain" ]; then
+        echo "    logging_domain: $domain"
+    fi
+    echo "  children:"
+    echo "    logging_servers:"
+    echo "      hosts:"
+    echo "        $firsthost:"
+    echo "    metrics_servers:"
+    echo "      hosts:"
+    echo "        $firsthost:"
+    echo "      vars:"
+    echo "        metrics_monitored_hosts:"
+    for host in ${name2fqdn[*]}; do
+        if [ "$host" != "$firsthost" ]; then
+            echo "          - $host"
+        fi
+    done
 }
 
 if [ "$START_STEP" = clean ] ; then
@@ -119,10 +180,33 @@ if [ "$START_STEP" = clean ] ; then
     START_STEP=create
 fi
 
-ip=
 stack=
 if [ "$START_STEP" = create ] ; then
     create_stack_and_machs_get_external_ips
+    START_STEP=getips
+fi
+
+if [ "$START_STEP" = getips ] ; then
+    if [ -z "$stack" ] ; then
+        stack=`get_stack $STACK_NAME`
+    fi
+    for host in ${!name2ip[*]} ; do
+        name2ip[$host]=$(get_external_ip $stack ${host}_ip)
+    done
+    START_STEP=getfqdns
+fi
+
+if [ "$START_STEP" = getfqdns ] ; then
+    if [ -z "$stack" ] ; then
+        stack=`get_stack $STACK_NAME`
+    fi
+    for host in ${!name2ip[*]} ; do
+        if [ -z "${name2ip[$host]}" ]; then
+            name2ip[$host]=$(get_external_ip $stack ${host}_ip)
+        fi
+        wait_until_cmd get_fqdn "${name2ip[$host]}" 300
+        name2fqdn[$host]=$(get_fqdn "${name2ip[$host]}")
+    done
     START_STEP=inventory
 fi
 
@@ -130,18 +214,40 @@ if [ "$START_STEP" = inventory ] ; then
     if [ -z "$stack" ] ; then
         stack=`get_stack $STACK_NAME`
     fi
-    iplist=""
-    for ipname in ${!hosts[*]} ; do
-        hosts[$ipname]=$(get_external_ip $stack ${ipname}_ip)
+    for host in ${!name2ip[*]} ; do
+        if [ -z "${name2ip[$host]}" ]; then
+            name2ip[$host]=$(get_external_ip $stack ${host}_ip)
+        fi
     done
-    INVENTORY=${INVENTORY:-inventory.yml}
-    echo "all:" > $INVENTORY
-    echo "  hosts:" >> $INVENTORY
-    for ipname in ${!hosts[*]} ; do
-        echo "    $ipname:" >> $INVENTORY
-        echo "      ansible_host: ${hosts[$ipname]}" >> $INVENTORY
-        echo "      ansible_ssh_common_args: -o UserKnownHostsFile=/dev/null -o StrictHostKeyChecking=no" >> $INVENTORY
-        echo "      ansible_user: ${ANSIBLE_USER}" >> $INVENTORY
-        echo "      ansible_become: true" >> $INVENTORY
+    for host in ${!name2fqdn[*]} ; do
+        if [ -z "${name2fqdn[$host]}" ]; then
+            name2fqdn[$host]=$(get_fqdn "${name2ip[$host]}")
+        fi
     done
+    if [ ! -d inventory ]; then
+        mkdir -p inventory
+    fi
+    INVENTORY=${INVENTORY:-inventory/inventory.yml}
+    make_inventory > $INVENTORY
+    START_STEP=wait_for_cloud_init
+fi
+
+if [ "$START_STEP" = wait_for_cloud_init ] ; then
+    for host in ${!name2ip[*]} ; do
+        wait_until_cmd get_cloud_init_finished $host 600 30
+    done
+    START_STEP=collection
+fi
+
+if [ "$START_STEP" = collection ] ; then
+    srcpath=$(pwd)/lsr
+    pushd $HOME/linux-system-roles/auto-maintenance > /dev/null 2>&1
+    python release_collection.py --src-path $srcpath --force
+    popd > /dev/null 2>&1
+    START_STEP=run_ansible
+fi
+
+if [ "$START_STEP" = run_ansible ] ; then
+    rm -f ansible.log
+    ANSIBLE_LOG_PATH=ansible.log ansible-playbook -vv -i inventory playbook.yml
 fi
