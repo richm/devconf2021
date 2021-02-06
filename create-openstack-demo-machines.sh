@@ -74,10 +74,10 @@ cleanup_old_machine_and_stack() {
     fi
 }
 
-get_external_ip() {
-    ip=`openstack stack output show $1 $2 -c output_value -f value`
-    if [ -n "$ip" ] ; then
-        echo $ip
+get_stack_out_val() {
+    local val=$(openstack stack output show $1 $2 -c output_value -f value)
+    if [ -n "$val" ] ; then
+        echo "$val"
         return 0
     fi
     return 1
@@ -118,7 +118,7 @@ create_stack_and_machs_get_external_ips() {
 
     stack=`get_stack $STACK_NAME`
     for host in ${!name2ip[*]}; do
-        wait_until_cmd get_external_ip "$stack ${host}_ip" 400
+        wait_until_cmd get_stack_out_val "$stack ${host}_ip" 400
     done
 }
 
@@ -173,6 +173,11 @@ make_inventory() {
             echo "          - $host"
         fi
     done
+    echo "    nfs_servers:"
+    echo "      hosts:"
+    echo "        $firsthost:"
+    echo "      vars:"
+    echo "        storage_data_volume: $disk_path"
 }
 
 if [ "$START_STEP" = clean ] ; then
@@ -191,7 +196,7 @@ if [ "$START_STEP" = getips ] ; then
         stack=`get_stack $STACK_NAME`
     fi
     for host in ${!name2ip[*]} ; do
-        name2ip[$host]=$(get_external_ip $stack ${host}_ip)
+        name2ip[$host]=$(get_stack_out_val $stack ${host}_ip)
     done
     START_STEP=getfqdns
 fi
@@ -202,7 +207,7 @@ if [ "$START_STEP" = getfqdns ] ; then
     fi
     for host in ${!name2ip[*]} ; do
         if [ -z "${name2ip[$host]}" ]; then
-            name2ip[$host]=$(get_external_ip $stack ${host}_ip)
+            name2ip[$host]=$(get_stack_out_val $stack ${host}_ip)
         fi
         wait_until_cmd get_fqdn "${name2ip[$host]}" 300
         name2fqdn[$host]=$(get_fqdn "${name2ip[$host]}")
@@ -216,7 +221,7 @@ if [ "$START_STEP" = inventory ] ; then
     fi
     for host in ${!name2ip[*]} ; do
         if [ -z "${name2ip[$host]}" ]; then
-            name2ip[$host]=$(get_external_ip $stack ${host}_ip)
+            name2ip[$host]=$(get_stack_out_val $stack ${host}_ip)
         fi
     done
     for host in ${!name2fqdn[*]} ; do
@@ -224,6 +229,7 @@ if [ "$START_STEP" = inventory ] ; then
             name2fqdn[$host]=$(get_fqdn "${name2ip[$host]}")
         fi
     done
+    disk_path=$(get_stack_out_val $stack data_volume_path)
     if [ ! -d inventory ]; then
         mkdir -p inventory
     fi
@@ -244,6 +250,7 @@ if [ "$START_STEP" = collection ] ; then
     pushd $HOME/linux-system-roles/auto-maintenance > /dev/null 2>&1
     python release_collection.py --src-path $srcpath --force
     popd > /dev/null 2>&1
+    ansible-galaxy collection install oasis_roles.system
     START_STEP=run_ansible
 fi
 

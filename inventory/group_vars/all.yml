@@ -28,17 +28,72 @@ crypto_policies_reload: true
 tlog_scope_sssd: all
 
 firewall:
+  # metrics
   - port: '44321/tcp'
     state: enabled
+  # logging
   - port: '514/tcp'
     state: enabled
   - port: '20514/tcp'
+    state: enabled
+  # nfs
+  - service: nfs
     state: enabled
 
 timesync_ntp_servers:
   - hostname: clock.corp.redhat.com
     iburst: yes
     maxpoll: 10
+
+storage_volumes:
+  - name: data
+    type: disk
+    mount_point: /data
+    disks:
+      - "{{ storage_data_volume }}"
+
+nfs_server_shares:
+  - share_path: /data
+    host_allow: '*'
+    opts: rw,sync,all_squash
+    create_dir: true
+    owner: nobody
+    group: nobody
+    mode: '0755'
+nfs_server_services:
+  - rpcbind
+  - nfs-server
+
+nfs_client_packages:
+  - nfs-utils
+nfs_client_directory:
+  name: /data
+  state: directory
+  mode: '0777'
+  owner: root
+  group: root
+nfs_client_mount:
+  name: /data
+  src: "{{ hostvars[groups['nfs_servers'][0]]['ansible_eth0']['ipv4']['address'] }}:/data"
+  fstype: nfs
+  opts: defaults
+  state: mounted
+
+sshd_gssapi_authentication: 'yes'
+sshd_gssapi_cleanup_credentials: 'no'
+sshd_kerberos_authentication: 'no'
+sshd_password_authentication: 'no'
+sshd_pubkey_authentication: 'yes'
+sshd_syslog_facility: AUTHPRIV
+sshd_use_dns: 'no'
+sshd_use_pam: 'yes'
+sshd_x11_forwarding: 'no'
+sshd_rekey_limit: '512M 1h'
+sshd_max_sessions: 10
+sshd_max_startups: 10:30:100
+sshd_max_auth_tries: 6
+sshd_client_alive_interval: 600
+sshd_client_alive_count_max: 3
 
 logging_inputs:
   - name: system_input

@@ -8,6 +8,7 @@
     - fedora.linux_system_roles.timesync
     - fedora.linux_system_roles.kdump
     - fedora.linux_system_roles.tlog
+    - fedora.linux_system_roles.sshd
 
 # deploy x509 certs/keys
 - hosts: all
@@ -15,19 +16,38 @@
     - name: create and deploy certs and keys
       include_tasks: create_certs_keys.yml
 
+# set up NFS servers
+- hosts: nfs_servers
+  roles:
+    - fedora.linux_system_roles.storage
+    - oasis_roles.system.nfs_server
+
 # set up logging servers
 - hosts: logging_servers
   roles:
     - fedora.linux_system_roles.logging
 
-- hosts: all
+# set up network clients
+- hosts: all:!logging_servers
+  roles:
+    - fedora.linux_system_roles.logging
+
+- hosts: all:!metrics_servers
+  roles:
+    - fedora.linux_system_roles.metrics
+
+- hosts: all:!nfs_servers
   tasks:
-    - include_role:
-        name: fedora.linux_system_roles.logging
-      when: inventory_hostname != logging_server
-    - include_role:
-        name: fedora.linux_system_roles.metrics
-      when: inventory_hostname != metrics_server
+    - name: install nfs client packages
+      package:
+        name: "{{ nfs_client_packages }}"
+        state: present
+
+    - name: create directory for mount
+      file: "{{ nfs_client_directory }}"
+
+    - name: do the nfs mount
+      mount: "{{ nfs_client_mount }}"
 
 - hosts: metrics_servers
   roles:

@@ -75,6 +75,12 @@ resources:
         - protocol: udp
         - protocol: tcp
 
+  data_volume:
+    type: OS::Cinder::data_volume
+    properties:
+      size: 100
+      name: data_volume
+
   machineA:
     type: OS::Nova::Server
     properties:
@@ -108,6 +114,17 @@ resources:
       user_data_format: RAW
       user_data: { get_resource: boot_config }
 
+  data_volume:
+    type: OS::Cinder::Volume
+    properties:
+      size: 100
+
+  data_volume_attachment:
+    type: OS::Cinder::VolumeAttachment
+    properties:
+      volume_id: { get_resource: data_volume }
+      instance_uuid: { get_resource: machineA }
+
 outputs:
   machineA_name:
     description: Name of A
@@ -127,3 +144,6 @@ outputs:
   machineC_ip:
     description: The IP address of C
     value: { get_attr: [machineC, first_address] }
+  data_volume_path:
+    description: disk path of data_volume
+    value: { get_attr: [data_volume, attachments_list, 0, device] }
