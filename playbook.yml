@@ -27,15 +27,17 @@
   roles:
     - fedora.linux_system_roles.logging
 
-# set up network clients
+# set up logging clients
 - hosts: all:!logging_servers
   roles:
     - fedora.linux_system_roles.logging
 
+# set up metrics clients
 - hosts: all:!metrics_servers
   roles:
     - fedora.linux_system_roles.metrics
 
+# set up nfs clients
 - hosts: all:!nfs_servers
   tasks:
     - name: install nfs client packages
@@ -49,6 +51,7 @@
     - name: do the nfs mount
       mount: "{{ nfs_client_mount }}"
 
+# set up metrics servers
 - hosts: metrics_servers
   roles:
     - fedora.linux_system_roles.metrics
