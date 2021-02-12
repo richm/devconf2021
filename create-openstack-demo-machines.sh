@@ -250,7 +250,7 @@ if [ "$START_STEP" = collection ] ; then
     pushd $HOME/linux-system-roles/auto-maintenance > /dev/null 2>&1
     python release_collection.py --src-path $srcpath --force
     popd > /dev/null 2>&1
-    ansible-galaxy collection install oasis_roles.system
+    ansible-galaxy collection install --force oasis_roles.system
     START_STEP=run_ansible
 fi
 
