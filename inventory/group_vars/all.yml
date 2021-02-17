@@ -21,9 +21,6 @@ kernel_settings_sysfs:
 crypto_policies_policy: "DEFAULT:NO-SHA1"
 crypto_policies_reload: true
 
-# set kdump_path to NFS mounted drive
-#kdump_path: /share
-
 # session recording for all users
 tlog_scope_sssd: all
 
