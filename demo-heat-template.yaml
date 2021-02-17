@@ -22,7 +22,7 @@ parameters:
   public_network:
     type: string
     label: Public network name or ID
-    description: Public network with floating IP addresses.
+    description: Public network with external IP addresses.
     default: "provider_net_shared"
   run_stack_name:
     type: string

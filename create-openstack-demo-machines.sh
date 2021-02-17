@@ -279,9 +279,18 @@ if [ "$START_STEP" = collection ] ; then
     python release_collection.py --src-path $srcpath --collection-release-yml collection_release.yml.demo --force
     popd > /dev/null 2>&1
     ansible-galaxy collection install --force oasis_roles.system
-    START_STEP=run_ansible
+    START_STEP=extra_setup
 fi
 if [ "$STOP_STEP" = collection ] ; then
+    exit 0
+fi
+
+if [ "$START_STEP" = extra_setup ] ; then
+    rm -f ansible.log
+    ANSIBLE_LOG_PATH=ansible.log ansible-playbook -vv -i inventory extra_setup.yml
+    START_STEP=run_ansible
+fi
+if [ "$STOP_STEP" = extra_setup ] ; then
     exit 0
 fi
 

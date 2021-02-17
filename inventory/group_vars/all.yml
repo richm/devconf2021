@@ -96,3 +96,40 @@ logging_flows:
   - name: flow
     inputs: [system_input]
     outputs: [relp_client]
+
+network_connections:
+  - name: br0
+    type: bridge
+    ip:
+      address:
+        - "2001:db8::23/64"
+    state: up
+  - name: bond0
+    type: bond
+    port_type: bridge
+    controller: br0
+    state: up
+  - name: br29
+    type: bridge
+    ip:
+      address:
+        - "2001:db8:29::23/64"
+    state: up
+  - name: vlan29
+    type: vlan
+    parent: bond0
+    vlan:
+      id: 29
+    port_type: bridge
+    controller: br29
+    state: up
+  - name: eth1
+    type: ethernet
+    controller: bond0
+    port_type: bond
+    state: up
+  - name: eth2
+    type: ethernet
+    controller: bond0
+    port_type: bond
+    state: up
