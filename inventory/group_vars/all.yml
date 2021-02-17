@@ -39,6 +39,9 @@ firewall:
   # nfs
   - service: nfs
     state: enabled
+  # ipsec/vpn
+  - service: ipsec
+    state: enabled
 
 timesync_ntp_servers:
   - hostname: clock.corp.redhat.com

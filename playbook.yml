@@ -9,6 +9,9 @@
     - fedora.linux_system_roles.kdump
     - fedora.linux_system_roles.tlog
     - fedora.linux_system_roles.sshd
+    - fedora.linux_system_roles.vpn
+  tasks:
+    - meta: flush_handlers
 
 # deploy x509 certs/keys
 - hosts: all

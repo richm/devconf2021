@@ -161,6 +161,14 @@ make_inventory() {
     if [ -n "$domain" ]; then
         echo "    logging_domain: $domain"
     fi
+    echo "    vpn_connections:"
+    echo "      - hosts:"
+    for host in ${name2fqdn[*]}; do
+        echo "          ${host}:"
+        echo "            hostname: ${host}"
+    done
+    echo "        auto: start"
+    echo "        rekey: true"
     echo "  children:"
     echo "    logging_servers:"
     echo "      hosts:"
