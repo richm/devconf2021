@@ -22,6 +22,8 @@ if [ -z "$START_STEP" ] ; then
     exit 1
 fi
 
+STOP_STEP="${STOP_STEP:-run_ansible}"
+
 wait_until_cmd() {
     ii=$3
     interval=${4:-10}
@@ -184,11 +186,17 @@ if [ "$START_STEP" = clean ] ; then
     cleanup_old_machine_and_stack
     START_STEP=create
 fi
+if [ "$STOP_STEP" = clean ] ; then
+    exit 0
+fi
 
 stack=
 if [ "$START_STEP" = create ] ; then
     create_stack_and_machs_get_external_ips
     START_STEP=getips
+fi
+if [ "$STOP_STEP" = create ] ; then
+    exit 0
 fi
 
 if [ "$START_STEP" = getips ] ; then
@@ -199,6 +207,9 @@ if [ "$START_STEP" = getips ] ; then
         name2ip[$host]=$(get_stack_out_val $stack ${host}_ip)
     done
     START_STEP=getfqdns
+fi
+if [ "$STOP_STEP" = getips ] ; then
+    exit 0
 fi
 
 if [ "$START_STEP" = getfqdns ] ; then
@@ -213,6 +224,9 @@ if [ "$START_STEP" = getfqdns ] ; then
         name2fqdn[$host]=$(get_fqdn "${name2ip[$host]}")
     done
     START_STEP=inventory
+fi
+if [ "$STOP_STEP" = getfqdns ] ; then
+    exit 0
 fi
 
 if [ "$START_STEP" = inventory ] ; then
@@ -237,6 +251,9 @@ if [ "$START_STEP" = inventory ] ; then
     make_inventory > $INVENTORY
     START_STEP=wait_for_cloud_init
 fi
+if [ "$STOP_STEP" = inventory ] ; then
+    exit 0
+fi
 
 if [ "$START_STEP" = wait_for_cloud_init ] ; then
     for host in ${!name2ip[*]} ; do
@@ -244,14 +261,20 @@ if [ "$START_STEP" = wait_for_cloud_init ] ; then
     done
     START_STEP=collection
 fi
+if [ "$STOP_STEP" = wait_for_cloud_init ] ; then
+    exit 0
+fi
 
 if [ "$START_STEP" = collection ] ; then
     srcpath=$(pwd)/lsr
     pushd $HOME/linux-system-roles/auto-maintenance > /dev/null 2>&1
-    python release_collection.py --src-path $srcpath --force
+    python release_collection.py --src-path $srcpath --collection-release-yml collection_release.yml.demo --force
     popd > /dev/null 2>&1
     ansible-galaxy collection install --force oasis_roles.system
     START_STEP=run_ansible
+fi
+if [ "$STOP_STEP" = collection ] ; then
+    exit 0
 fi
 
 if [ "$START_STEP" = run_ansible ] ; then
