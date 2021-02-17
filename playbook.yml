@@ -49,6 +49,8 @@
         state: present
 
     - name: create directory for mount
+      when:
+        - not ansible_mounts | selectattr('fstype', 'equalto', 'nfs4') | selectattr('mount', 'equalto', '/data') | list
       file: "{{ nfs_client_directory }}"
 
     - name: do the nfs mount
