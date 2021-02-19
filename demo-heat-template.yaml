@@ -58,13 +58,6 @@ resources:
             permissions: '0440'
             content: |
               Defaults !requiretty
-        # runcmd:
-        #   - [ hostname, { get_param: oshift_hostname } ]
-        #   - [ systemctl, daemon-reload ]
-        #   - [ systemctl, start, NetworkManager ]
-        #   - [ systemctl, enable, docker ]
-        #   - [ systemctl, start, docker ]
-        #   - [ /root/setup-for-dev.sh ]
   demo_security_group:
     type: OS::Neutron::SecurityGroup
     properties:

@@ -15,7 +15,9 @@ device name from the template output.  The `logging_domain` should be a domain
 which matches all of the client hosts. One more thing - for the sake of sanity I
 allowed all connections from all ports in my OpenStack cluster - see
 `demo-heat-template.yaml` `demo_security_group` - depending on your provisioning
-system, you may have to allow specified ports to be opened between your nodes.
+system, you may have to allow specified ports to be opened between your nodes. I
+used `extra_setup.yml` to create the ethernet devices used for the `network`
+role.
 
 ```yaml
 all:
