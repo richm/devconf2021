@@ -1,0 +1,6 @@
+---
+collections:
+  - name: fedora.linux_system_roles
+    source: https://galaxy.ansible.com
+  - name: oasis_roles.system
+    source: https://galaxy.ansible.com
